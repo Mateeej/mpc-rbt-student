@@ -14,6 +14,11 @@ public:
     LocalizationNode();
 
 private:
+
+    double x_;       // X pozice robota
+    double y_;       // Y pozice robota
+    double theta_;   // Orientace robota v radiánech
+
     void jointCallback(const sensor_msgs::msg::JointState & msg);
 
     void updateOdometry(double left_wheel_vel, double right_wheel_vel, double dt);
