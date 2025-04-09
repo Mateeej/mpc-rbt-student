@@ -4,7 +4,7 @@ Cílem tohoto cvičení je implementovat přímou kinematiku diferenciálně ř�
 ## Cíl cvičení 
 Výledkem cvičení je:
   1) Publikace topiku /odometry s příslušnými odometrickými daty
-  2) Publikování vhodné transformace mezi mapou a robotem
+  2) Publikování vhodné transformace mezi mapou (map frame) a robotem
   3) Vizualizace a ověření dat v Rvizu
 
 ### Před
@@ -51,11 +51,16 @@ Kvaterniony jsou čtyřrozměrné čísla, která se často používají k repre
 V projektu mpc\_rbt\_student budete upravovat soubor Localization.cpp a příslušný hlavičkový soubor. Pro kompilaci programu budete upravovat CMakeLists.txt a package.xml. A pro spuštění nodu budete upravovat launch file solution.launch.py. 
 
 ### Doporučený postup
-1) Přidejte prázdnou nodu (je již vytvořená) do CMakeLists.txt, zkompilujte ji a následně spusťe pomocí launch filu.
-2) S loklizačním nodem spusťe pomocí launch filu i RVIZ.
-3) Upravte si soubor config.rviz podle potřeby (needitujte ručně, vzužijte export přímo v RVIZu). Přidejte TF, mapu, lidarový sken a odometrii.
-2) Vytvořte subscriber pro topik /joint\_states a ověřte správnost příchozích dat.
-3) Vytvořte vhodný publisher pro data z odometrie, naplňte je nějakými daty a vizualizujte v RVIZu. 
-4) Vypočítejte odometrii.
-5) Vytvořte vhodnou transformaci.
-6) Ověřte správnost řešení.
+1) Přidejte prázdnou nodu (je již vytvořená) do CMakeLists.txt, zkompilujte ji, vyřeště chyby v závislostech a následně spusťe pomocí launch filu. Cílem tohoto bodu je zjistit, že jste schopni kompilovat kód a ten pomocí launch filu spustit. 
+2) S loklizačním nodem spusťe pomocí launch filu i RVIZ, který bude načítat předpřipravené nastavení RVIZu ze složky rviz (soubor config.rviz). Jestli jste to udělali správně zjístíte podle toho, že pozadí RVIZu bude bílé a ne šedé.  
+3) Upravte si soubor config.rviz (needitujte ručně, vzužijte export přímo v RVIZu). Přidejte transformaci abyste později viděli framy robota, které budete publikovat v následujících bodech, statickou mapu (occupancy\_grid), lidarový sken (až budete publikovat transformaci mezi mapou a robotem, měli byste vidět, že sken odpovídá statické mapě) a odometrii, která vizualizuje pozici a pohyb robota. Snažte se upravit RVIZ tak, aby vypadal jako na druhém obrázku v tomto návodu.
+2) Vytvořte subscriber pro topik /joint\_states a ověřte, že vám data v programu chodí (zdali se volá callback).
+3) Vytvořte vhodný publisher pro data z odometrie, naplňte je nějakými daty abyste si mohli v RVIZu ověřit, že data správně publikujete. Až uvidíte vizualizaci odometrie, můžete pokročit k dalšímu bodu zadání. 
+4) Vypočítejte odometrii a publikujte ji.
+5) Spolu s odometrií vytvořte transformaci, vizualizujte data a ověřte, že odometrie a transformace je publikována správně.
+
+### Odkazy na dokumentaci
+- [Vytvoření launch filu](https://docs.ros.org/en/humble/Tutorials/Intermediate/Launch/Launch-Main.html)
+- [CMakeList.txt tutorial](https://cmake.org/cmake/help/book/mastering-cmake/cmake/Help/guide/tutorial/)
+- [ROS 2 package](https://docs.ros.org/en/foxy/Tutorials/Beginner-Client-Libraries/Creating-Your-First-ROS2-Package.html)
+- [Transformace](https://docs.ros.org/en/foxy/Tutorials/Intermediate/Tf2/Tf2-Main.html)
