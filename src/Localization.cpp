@@ -32,6 +32,18 @@ void LocalizationNode::jointCallback(const sensor_msgs::msg::JointState & msg) {
     //oss << "Position: [";
     //printf("daco prislo");
 
+    auto current_time = this->get_clock()->now();
+    auto dt = current_time.seconds() - last_time_.seconds();
+    last_time_ = current_time;
+
+    RCLCPP_INFO(get_logger(), "DeltaTime is %f", dt);
+
+
+    updateOdometry(msg.velocity[0], msg.velocity[1], dt);
+    publishOdometry();
+    publishTransform();
+
+    
     // Debugging – vypíšeme přijímané data
     RCLCPP_INFO(get_logger(), "Received joint states message");
     RCLCPP_INFO(get_logger(), "Joint names:");
@@ -50,29 +62,13 @@ void LocalizationNode::jointCallback(const sensor_msgs::msg::JointState & msg) {
     for (size_t i = 0; i < msg.velocity.size(); ++i) {
         RCLCPP_INFO(get_logger(), "Joint %s velocity: %f", msg.name[i].c_str(), msg.velocity[i]);
     }
-
-    // Vypíšeme síly/úsilí kloubů (pokud je to relevantní pro tebe)
-    for (size_t i = 0; i < msg.effort.size(); ++i) {
-        RCLCPP_INFO(get_logger(), "Joint %s effort: %f", msg.name[i].c_str(), msg.effort[i]);
-    }
-
-    // ********
-    // * Help *
-    // ********
-    
-    auto current_time = this->get_clock()->now();
-    auto dt = 1; //current_time - last_time;
-
-    updateOdometry(msg.velocity[0], msg.velocity[1], dt);
-    publishOdometry();
-    publishTransform();
     
 }
 
 void LocalizationNode::updateOdometry(double left_wheel_vel, double right_wheel_vel, double dt) {
     // Výpočet lineární a úhlové rychlosti
-    double linear = (left_wheel_vel + right_wheel_vel) / 2.0;
-    double angular = (right_wheel_vel - left_wheel_vel) / robot_config::HALF_DISTANCE_BETWEEN_WHEELS;
+    double linear = (left_wheel_vel*robot_config::WHEEL_RADIUS + right_wheel_vel*robot_config::WHEEL_RADIUS) / 2.0;
+    double angular = (left_wheel_vel*robot_config::WHEEL_RADIUS - right_wheel_vel*robot_config::WHEEL_RADIUS) / (robot_config::HALF_DISTANCE_BETWEEN_WHEELS*2.0);
 
     // Získání aktuální orientace robota
     tf2::Quaternion tf_quat;
@@ -94,12 +90,12 @@ void LocalizationNode::updateOdometry(double left_wheel_vel, double right_wheel_
     theta_ += delta_theta;
 
     // Oprava orientace na interval (-pi, pi)
-    theta_ = std::atan2(std::sin(theta_), std::cos(theta_));
+    //theta_ = std::atan2(std::sin(theta_), std::cos(theta_));
 
     // Aktualizace odometrie v odometrickém zprávě
     odometry_.pose.pose.position.x = x_;
     odometry_.pose.pose.position.y = y_;
-    odometry_.pose.pose.orientation = tf2::toMsg(tf2::Quaternion(0, 0, sin(theta_ / 2), cos(theta_ / 2)));
+    //odometry_.pose.pose.orientation = tf2::toMsg(tf2::Quaternion(0, 0, sin(theta_ / 2), cos(theta_ / 2)));
 
     // Výpočet rychlosti robota (lineární a úhlová)
     odometry_.twist.twist.linear.x = linear;
@@ -107,6 +103,7 @@ void LocalizationNode::updateOdometry(double left_wheel_vel, double right_wheel_
 
     // Publikace odometrie
     publishOdometry();
+    publishTransform();
 
     // ********
     // * Help *
@@ -121,10 +118,12 @@ void LocalizationNode::updateOdometry(double left_wheel_vel, double right_wheel_
     tf2::Matrix3x3(tf_quat).getRPY(roll, pitch, theta);
 
     theta = std::atan2(std::sin(theta), std::cos(theta));
-
-    tf2::Quaternion q;
-    q.setRPY(0, 0, 0);
     */
+    tf2::Quaternion q;
+    q.setRPY(0, 0, theta_);
+    q.normalize();
+    odometry_.pose.pose.orientation = tf2::toMsg(q);
+    
 }
 
 void LocalizationNode::publishOdometry() {
