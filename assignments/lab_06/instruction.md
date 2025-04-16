@@ -31,7 +31,7 @@ Cílem je na základě mapy prostředí a dvou pozic najít optimální trasu. N
 ### Práce s ROS 2
 Základy práce s ROS 2 jste se naučili v rámci minulého cvičení. V tomto týdnu přidáme práci s ROS services (služby), jedná se o request-based způsob komunikace v ROSu. 
 - Jak zaslat a obsloužit požadavek na službu v ROS 2 za použití rclcpp::Node?
-- Seznamte se se strukturou použitých zpráv a služeb z `nav_msgs`.
+- Seznamte se se strukturou použitých zpráv a služeb z `nav\_msgs`.
 
 ### Bezpečný odstup od překážek
 Algoritmus A* ve své základní podobě vyhledává nejkratší trasu, která často vede podél hrany překážek, a pokud bychom navigovali střed robotu o nenulových rozměrech podél takové trasy, došlo by jistě ke kolizi. Obecně je lepší udržovat spíše větší odstup od překážek z důvodu nejistoty lokalizace robotu.
@@ -52,11 +52,65 @@ V projektu mpc\_rbt\_student budete upravovat soubor `Planning.cpp` a přísluš
 
 ### Doporučený postup
 1) Přidejte připravený prázdný node Planning do `CMakeLists.txt`, zkompilujte jej a následně spusťe, např. pomocí launch filu.
+
+> [!TIP]
+> Budete potřebovat balík `nav_msgs`, lokalizujte jej pomocí: `find_package(nav_msgs REQUIRED)`.
+>
+> Dále bude nutné modifikovat řádky:  
+> `set (dependencies`  
+> `...`  
+> `)`
+>
+> a
+>
+> `add_library(${PROJECT_NAME} SHARED`  
+> `...`  
+> `)`
+>
+> Přidejte také řádky:  
+> `add_executable(<node_name> src/<file_name>.cpp)`  
+> `target_link_libraries(<node_name> ${PROJECT_NAME})`  
+> `install(TARGETS <node_name> DESTINATION lib/${PROJECT_NAME})`
+
 2) Vytvořte klient pro načtení mapy prostředí a ověřte jeho funkčnost.
-3) Implementujte obsluhu služby `plan_path` a vyzkoušejte její volání z CLI.
+
+> [!TIP]
+> Pro asynchronní odeslání požadavku na map server můžete využít následující řádek kódu:
+>
+> `auto future = <client>->async_send_request(<request>, bind(&<callback>, this, placeholders::_1));`
+>
+> Další informace k napsání klientu najdete v [tutoriálu](https://docs.ros.org/en/humble/Tutorials/Beginner-Client-Libraries/Writing-A-Simple-Cpp-Service-And-Client.html).
+
+3) Implementujte obsluhu služby `plan_path` typu `nav_msgs/srv/GetPlan` a vyzkoušejte její volání z CLI.
+
+> [!TIP]
+> Návod k implementaci najdete v [tutoriálu](https://docs.ros.org/en/humble/Tutorials/Beginner-Client-Libraries/Writing-A-Simple-Cpp-Service-And-Client.html).
+>
+> Pro zavolání služby z CLI použijte příkaz:
+>
+> `ros2 service call <service_name> nav_msgs/srv/GetPlan "{start: {header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, pose: {position: {x: 0.0, y: 0.0, z: 0.0}, orientation: {x: 0.0, y: 0.0, z: 0.0, w: 1.0}}}, goal: {header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, pose: {position: {x: 0.0, y: 0.0, z: 0.0}, orientation: {x: 0.0, y: 0.0, z: 0.0, w: 1.0}}}, tolerance: 0.0}"`
+
 4) Implementujte funkci `aStar()` pro naplánování trasy mezi body zaslanými v requestu služby. (Tip: parametr `tolerance` nemusíte nijak využít.) Výsledek publikujte do topicu `planned_path`.
+
+> [!TIP]
+> Při rekonstrukci trasy (po nalezení cílového uzlu) postupujete od cíle k počátku. Nezapomeňte proto nakonec sekvenci waypointů otočit, např. pomocí funkce `std::reverse`.
+>
+> Vyvarujte se vytváření více instancí struktury Cell se stejnými souřadnicemi!
+>
+> Z dokumentace zjistěte, zda je mapa uspořádáná jako row-major nebo column-major. Pro prevenci schizofrenie doporučuji použít stejné řazení i u pomocných proměnných (např. `closedList`). Připomeňte si, jak pomocí dvojice indexů (x, y) najít správný prvek v 1D poli.
+>
+> Nedoporučuji používat příliš komplikované datové typy z knihoven, kterým moc nerozumíte. Dobrou službu vám udělá i `std::vector`, jehož velikost nemusíte znát v době kompilace (narozdíl od obyčejného pole).
+
 5) Upravte nastavení RVizu tak, aby zobrazoval trasu (display type Path). Konfiguraci uložte.
 6) Ověřte funkčnost vašeho plánovacího algoritmu pro různé kombinace startovní a cílové pozice.
 7) Implementujte funkci `dilateMap()`, která upraví podobu mapy použité pro plánování trasy. Zvolte vhodnou velikost odstupu od překážek. Zavolejte funkci ve vhodném místě v kódu.
+
+> [!TIP]
+> Implementace může být bez výčitek založena na vnořených `for` cyklech.
+
 8) Implementujte funkci `smoothPath()`, která upraví trasu vygenerovanou algoritmem A* tak, aby byla hladká. Zvolte vhodné parametry použitého algoritmu.
+
+> [!TIP]
+> Doporučuji zastropovat počet iterací algoritmu, abyste se nedostali do nekonečné smyčky.
+
 9) Ověřte funkčnost řešení jako celku.

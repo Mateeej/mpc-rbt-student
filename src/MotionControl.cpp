@@ -13,7 +13,7 @@ MotionControlNode::MotionControlNode() :
         // Client for path planning
         // add code here
 
-        // Action serrver
+        // Action server
         // add code here
 
         RCLCPP_INFO(get_logger(), "Motion control node started.");
