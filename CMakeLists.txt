@@ -38,6 +38,7 @@ set(dependencies
 add_library(${PROJECT_NAME} SHARED
     src/KeyboardControl.cpp
     src/Localization.cpp
+    src/Planning.cpp
     )
 
 add_executable(keyboard_control src/keyboard_control_node.cpp)
@@ -47,6 +48,10 @@ install(TARGETS keyboard_control DESTINATION lib/${PROJECT_NAME})
 add_executable(localization src/localization_node.cpp)
 target_link_libraries(localization ${PROJECT_NAME})
 install(TARGETS localization DESTINATION lib/${PROJECT_NAME})
+
+add_executable(planning src/planning_node.cpp)
+target_link_libraries(planning ${PROJECT_NAME})
+install(TARGETS planning DESTINATION lib/${PROJECT_NAME})
 
 ament_target_dependencies(${PROJECT_NAME} ${dependencies})
 install(TARGETS ${PROJECT_NAME}
