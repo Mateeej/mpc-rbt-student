@@ -172,8 +172,8 @@ void PlanningNode::aStar(const geometry_msgs::msg::PoseStamped &start, const geo
     std::shared_ptr<Cell> goalCell = nullptr;
 
     std::array<std::pair<int, int>, 8> directions = {{
-        {0, 1}, {1, 0}, {0, -1}, {-1, 0},
-        {1, 1}, {-1, 1}, {1, -1}, {-1, -1}
+        {0, 3}, {3, 0}, {0, -3}, {-3, 0},
+        {2, 2}, {-2, 2}, {2, -2}, {-2, -2}
     }};
 
     while (!openList.empty() && rclcpp::ok()) {
