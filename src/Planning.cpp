@@ -1,4 +1,5 @@
 #include "../include/Planning.hpp"
+#include "mpc_rbt_simulator/RobotConfig.hpp"
 
 PlanningNode::PlanningNode() :
     rclcpp::Node("planning_node") {
@@ -71,8 +72,11 @@ void PlanningNode::planPath(const std::shared_ptr<nav_msgs::srv::GetPlan::Reques
     path.header.stamp = this->get_clock()->now();
 
     // A* algoritmus a smoothing
+    RCLCPP_WARN(get_logger(), "Dilate Map");
+    dilateMap();
+    RCLCPP_WARN(get_logger(), "AStar");
     aStar(request->start, request->goal);
-    smoothPath();  // Ak je prázdna, nevadí
+    smoothPath(); 
 
     // Skontroluj, či je cesta naplnená
     if (path_.poses.empty()) {
@@ -97,11 +101,33 @@ void PlanningNode::dilateMap() {
     // ********
     // * Help *
     // ********
-    /*
+    int width = map_.info.width;
+    int height = map_.info.height;
+    float resolution = map_.info.resolution;
+
     nav_msgs::msg::OccupancyGrid dilatedMap = map_;
-    ... processing ...
+
+    int r = (int) ((robot_config::HALF_DISTANCE_BETWEEN_WHEELS*1.5)/resolution);
+    RCLCPP_WARN(get_logger(), "R: %d, W: %d, H: %d, res: %f, d=%f", r,width,height,resolution,(robot_config::HALF_DISTANCE_BETWEEN_WHEELS*1.5));
+
+
+    for(auto i=r;i<width-r;++i){
+        for(auto j=r;j<height-r;++j){
+            //RCLCPP_WARN(get_logger(), "x: %d, y: %d", i,j);
+            if(map_.data[i+j*width]){
+                for(auto k=i-r;k<(i+r);++k){
+                    for(auto l=j-r;l<(j+r);++l){
+                    //RCLCPP_WARN(get_logger(), "x: %d, y: %d (dilated) r: %d", k,l,r);
+                    dilatedMap.data[k+l*width] = 100;
+                    }
+                }
+            }
+        }
+    }
+    
+
     map_ = dilatedMap;
-    */
+    
 }
 
 void PlanningNode::aStar(const geometry_msgs::msg::PoseStamped &start, const geometry_msgs::msg::PoseStamped &goal) {
@@ -216,39 +242,217 @@ void PlanningNode::aStar(const geometry_msgs::msg::PoseStamped &start, const geo
     } else {
         RCLCPP_WARN(get_logger(), "Cesta sa nepodarila nájsť.");
     }
-
-    // ********
-    // * Help *
-    // ********
-    /*
-    Cell cStart(...x-map..., ...y-map...);
-    Cell cGoal(...x-map..., ...y-map...);
-
-    std::vector<std::shared_ptr<Cell>> openList;
-    std::vector<bool> closedList(map_.info.height * map_.info.width, false);
-
-    openList.push_back(std::make_shared<Cell>(cStart));
-
-    while(!openList.empty() && rclcpp::ok()) {
-        ...
+}
+/*
+void PlanningNode::smoothPath() {
+    if (path_.poses.size() < 3) {
+        RCLCPP_WARN(get_logger(), "Path too short to smooth");
+        return;
     }
 
-    RCLCPP_ERROR(get_logger(), "Unable to plan path.");
-    */
-}
+    // Parameters - adjust these based on your needs
+    const int iterations = 4;       // Increased from 3 to 4
+    const float tightness = 0.7f;   // Controls how closely the smoothed path follows the original (0.7-0.9)
+    const int min_points = 100;     // Minimum points after reduction
 
+    std::vector<geometry_msgs::msg::PoseStamped> smoothed = path_.poses;
+
+    // 1. Chaikin Smoothing with Tension Control
+    for (int i = 0; i < iterations; ++i) {
+        std::vector<geometry_msgs::msg::PoseStamped> temp;
+        temp.reserve(smoothed.size() * 2); // Pre-allocate memory
+
+        // Keep first point
+        temp.push_back(smoothed.front());
+
+        // Midpoint processing with tension control
+        for (size_t j = 1; j < smoothed.size(); ++j) {
+            const auto& p0 = smoothed[j-1];
+            const auto& p1 = smoothed[j];
+
+            geometry_msgs::msg::PoseStamped q, r;
+            q.header = r.header = p0.header;
+
+            // Tension-controlled interpolation
+            float ratio = tightness * 0.25f;
+            q.pose.position.x = (0.5f + ratio) * p0.pose.position.x + (0.5f - ratio) * p1.pose.position.x;
+            q.pose.position.y = (0.5f + ratio) * p0.pose.position.y + (0.5f - ratio) * p1.pose.position.y;
+
+            r.pose.position.x = (0.5f - ratio) * p0.pose.position.x + (0.5f + ratio) * p1.pose.position.x;
+            r.pose.position.y = (0.5f - ratio) * p0.pose.position.y + (0.5f + ratio) * p1.pose.position.y;
+
+            q.pose.orientation.w = r.pose.orientation.w = 1.0f;
+            temp.push_back(q);
+            temp.push_back(r);
+        }
+
+        // Keep last point
+        temp.push_back(smoothed.back());
+        smoothed = std::move(temp); // Efficient transfer
+    }
+
+    // 2. Angle-Based Simplification
+    std::vector<geometry_msgs::msg::PoseStamped> simplified;
+    simplified.push_back(smoothed.front());
+    
+    const float min_angle = 0.1f; // radians (~5.7 degrees)
+    
+    for (size_t i = 1; i < smoothed.size() - 1; ++i) {
+        const auto& prev = simplified.back();
+        const auto& curr = smoothed[i];
+        const auto& next = smoothed[i+1];
+
+        // Calculate vectors between points
+        float dx1 = curr.pose.position.x - prev.pose.position.x;
+        float dy1 = curr.pose.position.y - prev.pose.position.y;
+        float dx2 = next.pose.position.x - curr.pose.position.x;
+        float dy2 = next.pose.position.y - curr.pose.position.y;
+
+        // Calculate angle between segments
+        float angle = atan2(fabs(dx1*dy2 - dy1*dx2), dx1*dx2 + dy1*dy2);
+        
+        if (angle > min_angle || 
+            (next.pose.position.x - prev.pose.position.x)*(next.pose.position.x - prev.pose.position.x) +
+            (next.pose.position.y - prev.pose.position.y)*(next.pose.position.y - prev.pose.position.y) > 0.04f) { // 0.2m squared
+            simplified.push_back(curr);
+        }
+    }
+    simplified.push_back(smoothed.back());
+
+    // 3. Final Smoothing Pass (3-point average)
+    for (size_t i = 1; i < simplified.size() - 1; ++i) {
+        simplified[i].pose.position.x = 0.25f * simplified[i-1].pose.position.x + 
+                                      0.5f * simplified[i].pose.position.x + 
+                                      0.25f * simplified[i+1].pose.position.x;
+        simplified[i].pose.position.y = 0.25f * simplified[i-1].pose.position.y + 
+                                      0.5f * simplified[i].pose.position.y + 
+                                      0.25f * simplified[i+1].pose.position.y;
+    }
+
+    // Ensure minimum point density
+    if (simplified.size() < min_points) {
+        size_t step = (smoothed.size() - 1) / (min_points - 1);
+        step = std::max(step, 1ul);
+        simplified.clear();
+        for (size_t i = 0; i < smoothed.size(); i += step) {
+            simplified.push_back(smoothed[i]);
+        }
+        if (simplified.back().pose.position.x != smoothed.back().pose.position.x ||
+            simplified.back().pose.position.y != smoothed.back().pose.position.y) {
+            simplified.push_back(smoothed.back());
+        }
+    }
+
+    path_.poses = simplified;
+    RCLCPP_INFO(get_logger(), "Smoothed path from %ld to %ld points", 
+                path_.poses.size(), simplified.size());
+}*/
+
+void PlanningNode::smoothPath() {
+    if (path_.poses.size() < 3) {
+        RCLCPP_WARN(get_logger(), "Path too short to smooth");
+        return;
+    }
+
+
+    const int iterations = 3;          // Fewer iterations for broader curves
+    const float tightness = 0.7f;      // Looser fit to original path (0.7-0.8)
+    const float min_angle = 0.05f;     // ~2.9° (smaller angles = smoother curves)
+    const float min_segment_length = 10.0f; // Minimum segment length (meters) before adding a new point
+    const int min_points = 50;         // Fewer points for long-distance paths
+
+    std::vector<geometry_msgs::msg::PoseStamped> smoothed = path_.poses;
+    for (int i = 0; i < iterations; ++i) {
+        std::vector<geometry_msgs::msg::PoseStamped> temp;
+        temp.reserve(smoothed.size() * 2);
+
+        temp.push_back(smoothed.front()); // Keep first point
+
+        for (size_t j = 1; j < smoothed.size(); ++j) {
+            const auto& p0 = smoothed[j-1];
+            const auto& p1 = smoothed[j];
+
+            geometry_msgs::msg::PoseStamped q, r;
+            q.header = r.header = p0.header;
+
+            
+            float ratio = tightness * 0.25f;
+            q.pose.position.x = (0.5f + ratio) * p0.pose.position.x + (0.5f - ratio) * p1.pose.position.x;
+            q.pose.position.y = (0.5f + ratio) * p0.pose.position.y + (0.5f - ratio) * p1.pose.position.y;
+
+            r.pose.position.x = (0.5f - ratio) * p0.pose.position.x + (0.5f + ratio) * p1.pose.position.x;
+            r.pose.position.y = (0.5f - ratio) * p0.pose.position.y + (0.5f + ratio) * p1.pose.position.y;
+
+            q.pose.orientation.w = r.pose.orientation.w = 1.0f;
+            temp.push_back(q);
+            temp.push_back(r);
+        }
+        temp.push_back(smoothed.back()); // Keep last point
+        smoothed = std::move(temp);
+    }
+
+    std::vector<geometry_msgs::msg::PoseStamped> simplified;
+    simplified.push_back(smoothed.front());
+
+    for (size_t i = 1; i < smoothed.size() - 1; ++i) {
+        const auto& prev = simplified.back();
+        const auto& curr = smoothed[i];
+        const auto& next = smoothed[i+1];
+
+        // Calculate direction change angle
+        float dx1 = curr.pose.position.x - prev.pose.position.x;
+        float dy1 = curr.pose.position.y - prev.pose.position.y;
+        float dx2 = next.pose.position.x - curr.pose.position.x;
+        float dy2 = next.pose.position.y - curr.pose.position.y;
+        
+        float angle = atan2(fabs(dx1*dy2 - dy1*dx2), dx1*dx2 + dy1*dy2);
+
+        // Calculate segment length
+        float segment_length = sqrt(dx1*dx1 + dy1*dy1);
+
+        // Keep point if sharp turn OR long segment
+        if (angle > min_angle || segment_length > min_segment_length) {
+            simplified.push_back(curr);
+        }
+    }
+    simplified.push_back(smoothed.back());
+
+    for (size_t i = 1; i < simplified.size() - 1; ++i) {
+        simplified[i].pose.position.x = 0.15f * simplified[i-1].pose.position.x + 
+                                      0.7f * simplified[i].pose.position.x + 
+                                      0.15f * simplified[i+1].pose.position.x;
+        simplified[i].pose.position.y = 0.15f * simplified[i-1].pose.position.y + 
+                                      0.7f * simplified[i].pose.position.y + 
+                                      0.15f * simplified[i+1].pose.position.y;
+    }
+
+    // Ensure minimum points for control
+    if (simplified.size() < min_points && smoothed.size() > min_points) {
+        simplified.clear();
+        size_t step = smoothed.size() / min_points;
+        for (size_t i = 0; i < smoothed.size(); i += step) {
+            simplified.push_back(smoothed[i]);
+        }
+        simplified.push_back(smoothed.back());
+    }
+
+    path_.poses = simplified;
+    RCLCPP_INFO(get_logger(), "Outdoor-smoothed path: %ld points", simplified.size());
+}  
+
+/*
 void PlanningNode::smoothPath() {
     // add code here
 
     // ********
     // * Help *
     // ********
-    /*
+    
     std::vector<geometry_msgs::msg::PoseStamped> newPath = path_.poses;
     ... processing ...
     path_.poses = newPath;
-    */
-}
+    
+}*/
 /*
 Cell::Cell(int c, int r) {
     // add code here
