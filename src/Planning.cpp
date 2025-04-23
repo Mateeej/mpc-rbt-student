@@ -249,7 +249,11 @@ void PlanningNode::smoothPath() {
     path_.poses = newPath;
     */
 }
-
+/*
 Cell::Cell(int c, int r) {
     // add code here
+}*/
+
+Cell::Cell(int c, int r) : x(c), y(r), g(0), h(0), f(0), parent(nullptr) {
+    // Initialize all member variables
 }

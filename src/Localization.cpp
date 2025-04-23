@@ -36,14 +36,14 @@ void LocalizationNode::jointCallback(const sensor_msgs::msg::JointState & msg) {
     auto dt = current_time.seconds() - last_time_.seconds();
     last_time_ = current_time;
 
-    RCLCPP_INFO(get_logger(), "DeltaTime is %f", dt);
+    //RCLCPP_INFO(get_logger(), "DeltaTime is %f", dt);
 
 
     updateOdometry(msg.velocity[0], msg.velocity[1], dt);
     publishOdometry();
     publishTransform();
 
-    
+    /*
     // Debugging – vypíšeme přijímané data
     RCLCPP_INFO(get_logger(), "Received joint states message");
     RCLCPP_INFO(get_logger(), "Joint names:");
@@ -61,7 +61,7 @@ void LocalizationNode::jointCallback(const sensor_msgs::msg::JointState & msg) {
     // Vypíšeme rychlosti kloubů
     for (size_t i = 0; i < msg.velocity.size(); ++i) {
         RCLCPP_INFO(get_logger(), "Joint %s velocity: %f", msg.name[i].c_str(), msg.velocity[i]);
-    }
+    }*/
     
 }
 
