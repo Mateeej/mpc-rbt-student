@@ -29,10 +29,18 @@ def generate_launch_description():
         output='screen'
     )
     
+    motion_control_node = Node(
+        package='mpc_rbt_student',
+        executable='motion_control',
+        name='motion_control_node',
+        output='screen'
+    )
+    
     
     return LaunchDescription([
     rviz_node,
     localization_node,
-    planning_node
+    planning_node,
+    motion_control_node
 
     ])

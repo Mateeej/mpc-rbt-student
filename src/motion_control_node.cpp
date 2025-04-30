@@ -1,4 +1,4 @@
-#include "mpc_rbt_solution/MotionControl.hpp"
+#include "../include/MotionControl.hpp"
 
 int main(int argc, char *argv[]) {
     rclcpp::init(argc, argv);
